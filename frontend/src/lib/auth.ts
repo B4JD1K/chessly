@@ -11,7 +11,7 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account && profile) {
-        token.discordId = profile.id;
+        token.discordId = (profile as any).id;
       }
       return token;
     },

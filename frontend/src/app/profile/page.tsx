@@ -30,12 +30,14 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!discordId) return;
 
+    const userId = discordId; // Capture for closure
+
     async function fetchData() {
       setIsLoading(true);
       try {
         const [achievementsData, statsData] = await Promise.all([
-          getUserAchievements(discordId),
-          getUserStats(discordId),
+          getUserAchievements(userId),
+          getUserStats(userId),
         ]);
         setAchievements(achievementsData);
         setStats(statsData);

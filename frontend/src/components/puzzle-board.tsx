@@ -51,7 +51,7 @@ export function PuzzleBoard({ puzzle, onComplete }: PuzzleBoardProps) {
   }, []);
 
   const onDrop = useCallback(
-    async (sourceSquare: Square, targetSquare: Square, piece: string) => {
+    (sourceSquare: Square, targetSquare: Square, piece: string): boolean => {
       if (status !== "playing" || isValidating) return false;
 
       const move = sourceSquare + targetSquare;
@@ -73,36 +73,39 @@ export function PuzzleBoard({ puzzle, onComplete }: PuzzleBoardProps) {
         return false;
       }
 
+      const previousFen = game.fen();
       setIsValidating(true);
       setGame(gameCopy);
 
-      try {
-        const response = await validateMove(puzzle.id, fullMove, moveIndex);
+      // Handle API call asynchronously
+      validateMove(puzzle.id, fullMove, moveIndex)
+        .then((response) => {
+          if (response.correct) {
+            if (response.is_complete) {
+              setStatus("success");
+              setMessage("Puzzle solved!");
+              onComplete?.(true);
+            } else if (response.opponent_move) {
+              makeOpponentMove(response.opponent_move);
+            }
+          } else {
+            // Revert move
+            setGame(new Chess(previousFen));
+            setMessage(response.message || "Incorrect move");
 
-        if (response.correct) {
-          if (response.is_complete) {
-            setStatus("success");
-            setMessage("Puzzle solved!");
-            onComplete?.(true);
-          } else if (response.opponent_move) {
-            makeOpponentMove(response.opponent_move);
+            // Clear message after 2 seconds
+            setTimeout(() => setMessage(null), 2000);
           }
-        } else {
-          // Revert move
-          setGame(new Chess(game.fen()));
-          setMessage(response.message || "Incorrect move");
-
-          // Clear message after 2 seconds
+        })
+        .catch((error) => {
+          console.error("Validation error:", error);
+          setGame(new Chess(previousFen));
+          setMessage("Error validating move");
           setTimeout(() => setMessage(null), 2000);
-        }
-      } catch (error) {
-        console.error("Validation error:", error);
-        setGame(new Chess(game.fen()));
-        setMessage("Error validating move");
-        setTimeout(() => setMessage(null), 2000);
-      } finally {
-        setIsValidating(false);
-      }
+        })
+        .finally(() => {
+          setIsValidating(false);
+        });
 
       return true;
     },

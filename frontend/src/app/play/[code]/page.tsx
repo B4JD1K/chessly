@@ -26,6 +26,8 @@ export default function GamePage() {
   useEffect(() => {
     if (!discordId || hasJoined.current) return;
 
+    const userId = discordId; // Capture for closure
+
     async function fetchAndJoin() {
       try {
         // First try to get the game
@@ -44,7 +46,7 @@ export default function GamePage() {
         } else if (gameData.status === "waiting") {
           // Try to join as black
           try {
-            gameData = await joinGame(code, discordId);
+            gameData = await joinGame(code, userId);
             setPlayerColor("black");
           } catch (e) {
             console.error("Failed to join:", e);

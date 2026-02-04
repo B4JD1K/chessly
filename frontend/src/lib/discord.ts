@@ -48,7 +48,7 @@ export async function getDiscordSdk(): Promise<DiscordSDK | DiscordSDKMock | nul
   const useMock = process.env.NEXT_PUBLIC_DISCORD_SDK_MOCK === "true";
 
   if (useMock) {
-    discordSdk = new DiscordSDKMock(clientId, null, null);
+    discordSdk = new DiscordSDKMock(clientId, null as any, null as any, null as any);
   } else {
     discordSdk = new DiscordSDK(clientId);
   }

@@ -33,12 +33,14 @@ export default function LearnPage() {
   useEffect(() => {
     if (!discordId) return;
 
+    const userId = discordId; // Capture for closure
+
     async function fetchData() {
       setIsLoading(true);
       try {
         const [lessonsData, progressData] = await Promise.all([
-          getLessonsWithProgress(discordId, selectedCategory || undefined),
-          getCategoryProgress(discordId),
+          getLessonsWithProgress(userId, selectedCategory || undefined),
+          getCategoryProgress(userId),
         ]);
         setLessons(lessonsData);
         setCategoryProgress(progressData);

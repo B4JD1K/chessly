@@ -35,6 +35,8 @@ export default function LessonPage() {
   useEffect(() => {
     if (!discordId || !lessonId) return;
 
+    const userId = discordId; // Capture for closure
+
     async function fetchData() {
       setIsLoading(true);
       setError(null);
@@ -42,14 +44,14 @@ export default function LessonPage() {
       try {
         const [lessonData, progressData] = await Promise.all([
           getLesson(lessonId),
-          getLessonProgress(lessonId, discordId),
+          getLessonProgress(lessonId, userId),
         ]);
 
         setLesson(lessonData);
 
         // If not started, start the lesson
         if (progressData.status === "not_started") {
-          const newProgress = await startLesson(lessonId, discordId);
+          const newProgress = await startLesson(lessonId, userId);
           setProgress(newProgress);
         } else {
           setProgress(progressData);

@@ -33,7 +33,7 @@ export function BotGameBoard({ game, discordId, onGameUpdate }: BotGameBoardProp
   const isMyTurn = game.is_player_turn && !gameOver && !isThinking;
 
   const onDrop = useCallback(
-    async (sourceSquare: Square, targetSquare: Square, piece: string) => {
+    (sourceSquare: Square, targetSquare: Square, piece: string): boolean => {
       if (!isMyTurn) return false;
 
       const move = sourceSquare + targetSquare;
@@ -54,46 +54,49 @@ export function BotGameBoard({ game, discordId, onGameUpdate }: BotGameBoardProp
       }
 
       const fullMove = promotion ? move + promotion : move;
+      const currentPosition = position;
       setPosition(gameInstance.fen());
       setIsThinking(true);
 
-      try {
-        const response = await makeBotMove(game.id, fullMove, discordId);
+      // Handle API call asynchronously
+      makeBotMove(game.id, fullMove, discordId)
+        .then((response) => {
+          if (response.valid) {
+            // Apply bot's response move if any
+            if (response.bot_move_uci && response.fen_after) {
+              gameInstance.load(response.fen_after);
+              setPosition(response.fen_after);
+              setLastBotMove(response.bot_move_uci);
+            }
 
-        if (response.valid) {
-          // Apply bot's response move if any
-          if (response.bot_move_uci && response.fen_after) {
-            gameInstance.load(response.fen_after);
-            setPosition(response.fen_after);
-            setLastBotMove(response.bot_move_uci);
-          }
-
-          if (response.game_over) {
-            setGameOver(true);
-            setResult(response.result);
-            onGameUpdate({
-              status: "completed",
-              result: response.result,
-              current_fen: response.fen_after || position,
-            });
+            if (response.game_over) {
+              setGameOver(true);
+              setResult(response.result);
+              onGameUpdate({
+                status: "completed",
+                result: response.result,
+                current_fen: response.fen_after || currentPosition,
+              });
+            } else {
+              onGameUpdate({
+                current_fen: response.fen_after || currentPosition,
+                is_player_turn: true,
+              });
+            }
           } else {
-            onGameUpdate({
-              current_fen: response.fen_after || position,
-              is_player_turn: true,
-            });
+            // Revert move
+            gameInstance.load(currentPosition);
+            setPosition(currentPosition);
           }
-        } else {
-          // Revert move
-          gameInstance.load(position);
-          setPosition(position);
-        }
-      } catch (error) {
-        console.error("Move error:", error);
-        gameInstance.load(position);
-        setPosition(position);
-      } finally {
-        setIsThinking(false);
-      }
+        })
+        .catch((error) => {
+          console.error("Move error:", error);
+          gameInstance.load(currentPosition);
+          setPosition(currentPosition);
+        })
+        .finally(() => {
+          setIsThinking(false);
+        });
 
       return true;
     },

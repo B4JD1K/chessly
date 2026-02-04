@@ -49,7 +49,7 @@ export function LessonBoard({
   }, [currentStep]);
 
   const onDrop = useCallback(
-    async (sourceSquare: Square, targetSquare: Square) => {
+    (sourceSquare: Square, targetSquare: Square): boolean => {
       if (isValidating || isComplete) return false;
 
       // Check if move is legal locally first
@@ -83,61 +83,63 @@ export function LessonBoard({
 
       setIsValidating(true);
 
-      try {
-        const result = await validateLessonMove(lesson.id, moveUci, discordId);
-
-        if (result.correct) {
-          // Update the board with the new position
-          if (result.fen_after) {
-            setGame(new Chess(result.fen_after));
-          } else {
-            // Apply the move locally
-            const newGame = new Chess(game.fen());
-            newGame.move({
-              from: sourceSquare,
-              to: targetSquare,
-              promotion: "q",
-            });
-            setGame(newGame);
-          }
-
-          if (result.is_lesson_complete) {
-            setIsComplete(true);
-            setFeedback({
-              type: "success",
-              message: "🎉 Gratulacje! Lekcja ukończona!",
-            });
-            onLessonComplete();
-          } else {
-            setFeedback({
-              type: "success",
-              message: result.opponent_move
-                ? `Poprawnie! ${result.message || ""}`
-                : result.message || "Poprawnie!",
-            });
-
-            // Update progress
-            if (result.next_step_index !== null) {
-              onProgressUpdate({
-                ...progress,
-                current_step_index: result.next_step_index,
+      // Handle API call asynchronously
+      validateLessonMove(lesson.id, moveUci, discordId)
+        .then((result) => {
+          if (result.correct) {
+            // Update the board with the new position
+            if (result.fen_after) {
+              setGame(new Chess(result.fen_after));
+            } else {
+              // Apply the move locally
+              const newGame = new Chess(game.fen());
+              newGame.move({
+                from: sourceSquare,
+                to: targetSquare,
+                promotion: "q",
               });
+              setGame(newGame);
             }
+
+            if (result.is_lesson_complete) {
+              setIsComplete(true);
+              setFeedback({
+                type: "success",
+                message: "🎉 Gratulacje! Lekcja ukończona!",
+              });
+              onLessonComplete();
+            } else {
+              setFeedback({
+                type: "success",
+                message: result.opponent_move
+                  ? `Poprawnie! ${result.message || ""}`
+                  : result.message || "Poprawnie!",
+              });
+
+              // Update progress
+              if (result.next_step_index !== null) {
+                onProgressUpdate({
+                  ...progress,
+                  current_step_index: result.next_step_index,
+                });
+              }
+            }
+          } else {
+            setFeedback({
+              type: "error",
+              message: result.message || "Spróbuj ponownie",
+            });
           }
-        } else {
+        })
+        .catch((error) => {
           setFeedback({
             type: "error",
-            message: result.message || "Spróbuj ponownie",
+            message: "Wystąpił błąd. Spróbuj ponownie.",
           });
-        }
-      } catch (error) {
-        setFeedback({
-          type: "error",
-          message: "Wystąpił błąd. Spróbuj ponownie.",
+        })
+        .finally(() => {
+          setIsValidating(false);
         });
-      } finally {
-        setIsValidating(false);
-      }
 
       return true;
     },
