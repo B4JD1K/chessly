@@ -22,7 +22,8 @@ class PuzzleResponse(BaseModel):
     @classmethod
     def from_puzzle(cls, puzzle) -> "PuzzleResponse":
         fen_parts = puzzle.fen.split()
-        player_color = "black" if fen_parts[1] == "w" else "white"
+        # Player color is whoever has the move in the FEN
+        player_color = "white" if fen_parts[1] == "w" else "black"
         themes = puzzle.themes.split(",") if puzzle.themes else []
         return cls(
             id=puzzle.id,
