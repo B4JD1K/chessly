@@ -2,9 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install stockfish
+# Install stockfish and create symlink to expected path
 RUN apt-get update && \
     apt-get install -y stockfish && \
+    ln -sf /usr/games/stockfish /usr/bin/stockfish && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
