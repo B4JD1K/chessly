@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import puzzles, users, games, bot_games, auth, lessons, achievements
+# Import services to ensure event handlers are registered
+from app import services  # noqa: F401
 
 app = FastAPI(
     title="Chessly API",

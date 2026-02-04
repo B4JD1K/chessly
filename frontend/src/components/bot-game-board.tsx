@@ -168,16 +168,6 @@ export function BotGameBoard({ game, discordId, onGameUpdate }: BotGameBoardProp
               backgroundColor: "#ebecd0",
             }}
           />
-
-          {/* Thinking overlay */}
-          {isThinking && (
-            <div className="absolute inset-0 bg-black/20 flex items-center justify-center rounded">
-              <div className="bg-background px-4 py-2 rounded-lg flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Bot is thinking...</span>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -191,7 +181,10 @@ export function BotGameBoard({ game, discordId, onGameUpdate }: BotGameBoardProp
         {gameOver ? (
           <div className="text-lg font-semibold">{getResultText()}</div>
         ) : isThinking ? (
-          <div className="text-muted-foreground">Bot is thinking...</div>
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Bot is thinking...</span>
+          </div>
         ) : isMyTurn ? (
           <div className="text-muted-foreground">Your turn</div>
         ) : (
