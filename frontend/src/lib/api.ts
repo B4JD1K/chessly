@@ -7,6 +7,7 @@ export interface PuzzleResponse {
   rating: number;
   themes: string[];
   player_color: "white" | "black";
+  source: string | null;
 }
 
 export interface MoveRequest {
@@ -92,10 +93,10 @@ export const TIME_CONTROL_LABELS: Record<TimeControl, string> = {
 };
 
 // Puzzle endpoints
-export async function getDailyPuzzle(): Promise<PuzzleResponse> {
+export async function getDailyPuzzles(): Promise<PuzzleResponse[]> {
   const response = await fetch(`${API_BASE_URL}/puzzles/daily`);
   if (!response.ok) {
-    throw new Error("Failed to fetch daily puzzle");
+    throw new Error("Failed to fetch daily puzzles");
   }
   return response.json();
 }

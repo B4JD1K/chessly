@@ -16,6 +16,7 @@ class PuzzleResponse(BaseModel):
     rating: int
     themes: list[str]
     player_color: str  # "white" or "black"
+    source: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -31,4 +32,5 @@ class PuzzleResponse(BaseModel):
             rating=puzzle.rating,
             themes=themes,
             player_color=player_color,
+            source=puzzle.source,
         )

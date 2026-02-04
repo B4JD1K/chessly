@@ -20,7 +20,8 @@ class Puzzle(Base):
     solution: Mapped[str] = mapped_column(Text)  # UCI moves separated by space
     rating: Mapped[int] = mapped_column(default=1500)
     themes: Mapped[str | None] = mapped_column(Text, nullable=True)  # comma-separated
-    daily_date: Mapped[date | None] = mapped_column(Date, nullable=True, unique=True, index=True)
+    source: Mapped[str | None] = mapped_column(String(50), nullable=True)  # lichess, chess.com, etc.
+    daily_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

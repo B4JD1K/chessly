@@ -1,0 +1,46 @@
+name: Fetch Daily Puzzles
+
+on:
+  schedule:
+    # Run at 00:05 UTC every day (after midnight to ensure new day)
+    - cron: '5 0 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Number of days to fetch puzzles for'
+        required: false
+        default: '1'
+      date:
+        description: 'Specific date (YYYY-MM-DD) to fetch puzzles for'
+        required: false
+
+jobs:
+  fetch-puzzles:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install requests sqlalchemy psycopg2-binary python-chess
+
+      - name: Fetch puzzles
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python scripts/fetch_puzzles.py --date "${{ github.event.inputs.date }}"
+          elif [ -n "${{ github.event.inputs.days }}" ]; then
+            python scripts/fetch_puzzles.py --days "${{ github.event.inputs.days }}"
+          else
+            python scripts/fetch_puzzles.py --days 1
+          fi

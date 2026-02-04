@@ -1,7 +1,9 @@
 from datetime import date
+import random
 
 import chess
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models import Puzzle
 from app.schemas import MoveRequest, MoveResponse
@@ -12,14 +14,32 @@ class PuzzleService:
         self.db = db
 
     def get_daily_puzzle(self, puzzle_date: date | None = None) -> Puzzle | None:
-        """Get the daily puzzle for a given date, or today if not specified."""
+        """Get a random daily puzzle for a given date, or today if not specified."""
+        if puzzle_date is None:
+            puzzle_date = date.today()
+
+        # Get all puzzles for this date
+        puzzles = (
+            self.db.query(Puzzle)
+            .filter(Puzzle.daily_date == puzzle_date)
+            .all()
+        )
+
+        if not puzzles:
+            return None
+
+        # Return random one
+        return random.choice(puzzles)
+
+    def get_daily_puzzles(self, puzzle_date: date | None = None) -> list[Puzzle]:
+        """Get all daily puzzles for a given date, or today if not specified."""
         if puzzle_date is None:
             puzzle_date = date.today()
 
         return (
             self.db.query(Puzzle)
             .filter(Puzzle.daily_date == puzzle_date)
-            .first()
+            .all()
         )
 
     def get_puzzle_by_id(self, puzzle_id: int) -> Puzzle | None:

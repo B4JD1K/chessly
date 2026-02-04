@@ -2,52 +2,76 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PuzzleBoard } from "@/components/puzzle-board";
-import { getDailyPuzzle, completePuzzle, PuzzleResponse } from "@/lib/api";
+import { getDailyPuzzles, completePuzzle, PuzzleResponse } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Flame, Trophy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Flame, Trophy, ChevronLeft, ChevronRight } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
+
+const SOURCE_LABELS: Record<string, string> = {
+  lichess: "Lichess",
+  "chess.com": "Chess.com",
+};
 
 export default function DailyPuzzlePage() {
   const { discordId, streak, refreshStreak } = useUser();
-  const [puzzle, setPuzzle] = useState<PuzzleResponse | null>(null);
+  const [puzzles, setPuzzles] = useState<PuzzleResponse[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [completed, setCompleted] = useState(false);
+  const [completedPuzzles, setCompletedPuzzles] = useState<Set<number>>(new Set());
+
+  const puzzle = puzzles[currentIndex] || null;
 
   useEffect(() => {
-    async function fetchPuzzle() {
+    async function fetchPuzzles() {
       try {
-        const data = await getDailyPuzzle();
-        setPuzzle(data);
+        const data = await getDailyPuzzles();
+        setPuzzles(data);
       } catch (err) {
-        setError("No puzzle available for today. Check back later!");
+        setError("No puzzles available for today. Check back later!");
         console.error(err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchPuzzle();
+    fetchPuzzles();
   }, []);
 
   // Check if puzzle was already solved today
   useEffect(() => {
     if (streak?.puzzle_solved_today) {
-      setCompleted(true);
+      // Mark first puzzle as completed (for streak purposes)
+      if (puzzles.length > 0) {
+        setCompletedPuzzles(new Set([puzzles[0].id]));
+      }
     }
-  }, [streak]);
+  }, [streak, puzzles]);
 
   const handleComplete = useCallback(async (success: boolean) => {
     if (success && discordId && puzzle) {
       try {
         await completePuzzle(discordId, puzzle.id, true);
-        setCompleted(true);
+        setCompletedPuzzles(prev => new Set([...prev, puzzle.id]));
         refreshStreak();
       } catch (error) {
         console.error("Failed to record completion:", error);
       }
     }
   }, [discordId, puzzle, refreshStreak]);
+
+  const goToPrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const goToNext = () => {
+    if (currentIndex < puzzles.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
 
   if (loading) {
     return (
@@ -57,13 +81,13 @@ export default function DailyPuzzlePage() {
     );
   }
 
-  if (error || !puzzle) {
+  if (error || puzzles.length === 0) {
     return (
       <div className="container mx-auto px-4 py-12">
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle>Daily Puzzle</CardTitle>
-            <CardDescription>{error || "No puzzle available"}</CardDescription>
+            <CardDescription>{error || "No puzzles available"}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
@@ -75,22 +99,66 @@ export default function DailyPuzzlePage() {
     );
   }
 
+  const isCurrentPuzzleCompleted = puzzle && completedPuzzles.has(puzzle.id);
+  const allPuzzlesCompleted = puzzles.every(p => completedPuzzles.has(p.id));
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-lg mx-auto">
         <h1 className="text-2xl font-bold text-center mb-2">Daily Puzzle</h1>
-        <p className="text-center text-muted-foreground mb-6">
-          {puzzle.player_color === "white" ? "White" : "Black"} to move
+
+        {puzzles.length > 1 && (
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goToPrevious}
+              disabled={currentIndex === 0}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex gap-2">
+              {puzzles.map((p, index) => (
+                <Button
+                  key={p.id}
+                  variant={index === currentIndex ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCurrentIndex(index)}
+                  className="relative"
+                >
+                  {SOURCE_LABELS[p.source || ""] || `Puzzle ${index + 1}`}
+                  {completedPuzzles.has(p.id) && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full" />
+                  )}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goToNext}
+              disabled={currentIndex === puzzles.length - 1}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+
+        <p className="text-center text-muted-foreground mb-2">
+          {puzzle?.player_color === "white" ? "White" : "Black"} to move
+        </p>
+        <p className="text-center text-sm text-muted-foreground mb-6">
+          Rating: {puzzle?.rating}
         </p>
 
-        {completed && (
+        {allPuzzlesCompleted && (
           <Card className="mb-6 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
             <CardContent className="pt-6">
               <div className="flex items-center justify-center gap-4">
                 <Trophy className="h-8 w-8 text-green-600" />
                 <div>
                   <p className="font-semibold text-green-700 dark:text-green-300">
-                    Puzzle solved!
+                    All puzzles solved!
                   </p>
                   <div className="flex items-center gap-1 text-orange-500">
                     <Flame className="h-4 w-4" />
@@ -105,7 +173,23 @@ export default function DailyPuzzlePage() {
           </Card>
         )}
 
-        <PuzzleBoard puzzle={puzzle} onComplete={handleComplete} />
+        {isCurrentPuzzleCompleted && !allPuzzlesCompleted && (
+          <Card className="mb-6 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <p className="text-center text-blue-700 dark:text-blue-300">
+                Puzzle solved! Try the next one.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {puzzle && (
+          <PuzzleBoard
+            key={puzzle.id}
+            puzzle={puzzle}
+            onComplete={handleComplete}
+          />
+        )}
       </div>
     </div>
   );

@@ -10,26 +10,26 @@ from app.services import PuzzleService
 router = APIRouter()
 
 
-@router.get("/daily", response_model=PuzzleResponse)
-def get_daily_puzzle(
+@router.get("/daily", response_model=list[PuzzleResponse])
+def get_daily_puzzles(
     puzzle_date: date | None = None,
     db: Session = Depends(get_db),
 ):
     """
-    Get the daily puzzle.
+    Get all daily puzzles for a given date.
 
-    If no date is provided, returns today's puzzle.
+    If no date is provided, returns today's puzzles.
     """
     service = PuzzleService(db)
-    puzzle = service.get_daily_puzzle(puzzle_date)
+    puzzles = service.get_daily_puzzles(puzzle_date)
 
-    if not puzzle:
+    if not puzzles:
         raise HTTPException(
             status_code=404,
-            detail="No puzzle available for this date"
+            detail="No puzzles available for this date"
         )
 
-    return PuzzleResponse.from_puzzle(puzzle)
+    return [PuzzleResponse.from_puzzle(p) for p in puzzles]
 
 
 @router.get("/{puzzle_id}", response_model=PuzzleResponse)
