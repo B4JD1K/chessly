@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Flame, User, Trophy, LogOut } from "lucide-react";
+import { Flame, User, LogOut } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
 
 export function Header() {
@@ -74,13 +74,7 @@ export function Header() {
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      Profil
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile" className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4" />
-                      Osiągnięcia
+                      Profil i Osiągnięcia
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
