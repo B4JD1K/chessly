@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.routers import puzzles, users, games, bot_games, auth, lessons, achievements
 
 app = FastAPI(
@@ -9,13 +10,18 @@ app = FastAPI(
     version="0.7.0",
 )
 
+# Build CORS origins list
+cors_origins = [
+    "http://localhost:3000",
+    "https://discord.com",
+]
+if settings.frontend_url and settings.frontend_url not in cors_origins:
+    cors_origins.append(settings.frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://discord.com",
-        "https://*.discordsays.com",
-    ],
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://.*\.discordsays\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

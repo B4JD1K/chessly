@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = True
 
+    # Frontend URL for CORS
+    frontend_url: str = "http://localhost:3000"
+
     # Discord OAuth2
     discord_client_id: str = ""
     discord_client_secret: str = ""
