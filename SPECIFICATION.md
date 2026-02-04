@@ -265,14 +265,157 @@ Qh7+
 * `/puzzle`
 * embed + link
 
-### ETAP 4 – Rozszerzenia
+### ETAP 4 – Multiplayer (gra przez link)
 
-* gra z botem
-* zapisy partii
-* WebSocket
+* **WebSocket server** (FastAPI WebSocket)
+* model danych dla sesji gry:
+  * `game_sessions` - aktywne pokoje
+  * `game_moves` - historia ruchów
+* **flow gry:**
+  1. Gracz A tworzy pokój → otrzymuje unikalny link (np. `/play/abc123`)
+  2. Gracz B otwiera link → dołącza do pokoju
+  3. Synchronizacja ruchów przez WebSocket
+  4. Zapis zakończonej partii do `games`
+* **UI:**
+  * strona oczekiwania na przeciwnika
+  * szachownica z timerem
+  * chat w grze (opcjonalnie)
+* kontrola czasu (bullet/blitz/rapid)
 
-### ETAP 5 – Discord Activity
+### ETAP 5 – Gra z botem
 
-* adaptacja UI
-* testy
-* publikacja
+* integracja Stockfish (subprocess lub Docker)
+* wybór poziomu trudności (ELO 800-2800)
+* zapisy partii (PGN)
+
+### ETAP 6 – Discord Activity
+
+* integracja `@discord/embedded-app-sdk`
+* wykrywanie trybu Discord Activity (iframe)
+* autoryzacja OAuth2 przez Discord SDK
+* backend endpoint do wymiany kodu na token
+* dedykowana strona `/activity` z menu gier
+* adaptacja UI (brak Header, ciemny motyw)
+* context `DiscordProvider` do zarządzania stanem
+* kompatybilność z istniejącą autoryzacją NextAuth
+
+---
+
+## 10. Struktura plików - Etap 6
+
+```
+backend/
+├── app/
+│   ├── config.py                 ✓ Discord OAuth settings
+│   ├── main.py                   ✓ CORS dla Discord, router auth
+│   └── routers/
+│       └── auth.py               ✓ POST /auth/discord/activity
+
+frontend/
+├── src/
+│   ├── lib/
+│   │   └── discord.ts            ✓ Discord SDK utilities
+│   ├── contexts/
+│   │   └── discord-context.tsx   ✓ DiscordProvider, useDiscord
+│   ├── components/
+│   │   ├── providers.tsx         ✓ + DiscordProvider
+│   │   └── activity-layout.tsx   ✓ Warunkowy layout
+│   ├── hooks/
+│   │   └── use-user.ts           ✓ Obsługa Discord Activity auth
+│   └── app/
+│       ├── layout.tsx            ✓ + ActivityLayout
+│       └── activity/
+│           └── page.tsx          ✓ Menu Discord Activity
+```
+
+---
+
+## 11. Konfiguracja Discord Activity
+
+### Wymagane zmienne środowiskowe
+
+Backend (`.env`):
+```
+DISCORD_CLIENT_ID=your-app-client-id
+DISCORD_CLIENT_SECRET=your-app-client-secret
+DISCORD_REDIRECT_URI=http://localhost:3000
+```
+
+Frontend (`.env.local`):
+```
+NEXT_PUBLIC_DISCORD_CLIENT_ID=your-app-client-id
+NEXT_PUBLIC_DISCORD_SDK_MOCK=false
+```
+
+### Rejestracja w Discord Developer Portal
+
+1. Przejdź do https://discord.com/developers/applications
+2. Wybierz aplikację Chessly (lub utwórz nową)
+3. W zakładce "Activities" włącz "Enable Activities"
+4. Ustaw "Activity URL" na adres produkcyjny aplikacji
+5. Dodaj "Redirect URLs" w OAuth2: `https://your-domain.com`
+6. Skopiuj Client ID i Client Secret
+
+---
+
+## 12. Struktura plików - Etap 7
+
+```
+backend/
+├── app/
+│   ├── models/
+│   │   ├── lesson.py                ✓ Lesson, LessonStep
+│   │   ├── user_lesson_progress.py  ✓ UserLessonProgress
+│   │   └── achievement.py           ✓ Achievement, UserAchievement
+│   ├── schemas/
+│   │   ├── lesson.py                ✓ LessonResponse, ValidateMoveResponse
+│   │   └── achievement.py           ✓ AchievementResponse
+│   ├── services/
+│   │   ├── event_service.py         ✓ EventService (event-driven)
+│   │   ├── achievement_service.py   ✓ AchievementService
+│   │   └── lesson_service.py        ✓ LessonService
+│   └── routers/
+│       ├── lessons.py               ✓ /lessons endpoints
+│       └── achievements.py          ✓ /achievements endpoints
+└── alembic/versions/
+    └── 005_add_lessons_and_achievements.py  ✓
+
+frontend/
+├── src/
+│   ├── app/
+│   │   ├── learn/
+│   │   │   ├── page.tsx             ✓ Lista lekcji
+│   │   │   └── [id]/page.tsx        ✓ Strona lekcji
+│   │   └── profile/
+│   │       └── page.tsx             ✓ Profil i achievementy
+│   └── components/
+│       └── lesson-board.tsx         ✓ Szachownica dla lekcji
+
+bot/
+├── learn_command.py                 ✓ /learn, /stats
+└── api_client.py                    ✓ + lesson/achievement endpoints
+```
+
+---
+
+## 13. Podsumowanie projektu Chessly
+
+```
+┌──────┬────────┬──────────────────────────────────────────────┐
+│ Etap │ Status │                     Opis                     │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 1    │ ✓      │ Fundamenty (FastAPI, SQLAlchemy, Next.js)    │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 2    │ ✓      │ Web MVP (Discord OAuth, puzzles, streak)     │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 3    │ ✓      │ Discord Bot (/puzzle, /streak)               │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 4    │ ✓      │ Multiplayer (WebSocket, timer, link sharing) │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 5    │ ✓      │ Gra z botem (Stockfish, PGN export)          │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 6    │ ✓      │ Discord Activity (embedded app)              │
+├──────┼────────┼──────────────────────────────────────────────┤
+│ 7    │ ✓      │ Lekcje i Achievementy                        │
+└──────┴────────┴──────────────────────────────────────────────┘
+```

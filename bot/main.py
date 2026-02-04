@@ -4,6 +4,7 @@ from discord.ext import commands
 
 from config import config
 from puzzle_command import PuzzleCog
+from learn_command import LearnCog
 
 
 class ChesslyBot(commands.Bot):
@@ -13,6 +14,7 @@ class ChesslyBot(commands.Bot):
 
     async def setup_hook(self):
         await self.add_cog(PuzzleCog(self))
+        await self.add_cog(LearnCog(self))
         await self.tree.sync()
         print(f"Synced slash commands")
 
