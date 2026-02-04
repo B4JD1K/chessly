@@ -53,7 +53,7 @@ export default function DailyPuzzlePage() {
     if (success && discordId && puzzle) {
       try {
         await completePuzzle(discordId, puzzle.id, true);
-        setCompletedPuzzles(prev => new Set([...prev, puzzle.id]));
+        setCompletedPuzzles(prev => new Set([...Array.from(prev), puzzle.id]));
         refreshStreak();
       } catch (error) {
         console.error("Failed to record completion:", error);
