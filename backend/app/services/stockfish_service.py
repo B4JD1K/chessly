@@ -1,17 +1,9 @@
 import asyncio
-from enum import Enum
 from typing import Optional
 import chess
 import chess.engine
 
-
-class BotDifficulty(str, Enum):
-    BEGINNER = "beginner"      # ~800 ELO
-    EASY = "easy"              # ~1000 ELO
-    MEDIUM = "medium"          # ~1400 ELO
-    HARD = "hard"              # ~1800 ELO
-    EXPERT = "expert"          # ~2200 ELO
-    MASTER = "master"          # ~2500+ ELO
+from app.enums import BotDifficulty
 
 
 # Stockfish settings for each difficulty level

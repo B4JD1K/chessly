@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.game import GameResult
-from app.services.stockfish_service import BotDifficulty
+from app.enums import BotDifficulty
 
 if TYPE_CHECKING:
     from app.models.user import User

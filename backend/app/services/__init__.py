@@ -2,10 +2,10 @@ from app.services.puzzle_service import PuzzleService
 from app.services.user_service import UserService
 from app.services.game_service import GameService
 from app.services.connection_manager import manager as connection_manager
+from app.enums import BotDifficulty
 from app.services.stockfish_service import (
     StockfishService,
     get_stockfish_service,
-    BotDifficulty,
     DIFFICULTY_SETTINGS,
 )
 from app.services.bot_game_service import BotGameService

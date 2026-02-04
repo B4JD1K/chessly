@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-from app.services.stockfish_service import BotDifficulty
+from app.enums import BotDifficulty
 from app.models.game import GameResult
 
 

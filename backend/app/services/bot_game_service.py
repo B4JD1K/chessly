@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.models import User, BotGame, GameResult
 from app.schemas import BotGameCreate, BotMoveRequest, BotMoveResponse
+from app.enums import BotDifficulty
 from app.services.stockfish_service import (
     get_stockfish_service,
-    BotDifficulty,
     DIFFICULTY_SETTINGS,
 )
 

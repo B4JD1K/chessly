@@ -11,7 +11,8 @@ from app.schemas import (
 )
 from app.services.user_service import UserService
 from app.services.bot_game_service import BotGameService
-from app.services.stockfish_service import BotDifficulty, DIFFICULTY_SETTINGS
+from app.enums import BotDifficulty
+from app.services.stockfish_service import DIFFICULTY_SETTINGS
 
 router = APIRouter()
 
