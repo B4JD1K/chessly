@@ -7,7 +7,7 @@ Sources:
 - Chess.com (chess.com)
 
 Usage:
-    # Fetch puzzles for tomorrow
+    # Fetch puzzles for today
     python scripts/fetch_puzzles.py
 
     # Fetch puzzles for next 7 days
@@ -206,8 +206,8 @@ def main():
             target_date = date.fromisoformat(args.date)
             fetch_all_puzzles(session, target_date)
         else:
-            # Fetch for next N days starting from tomorrow
-            start_date = date.today() + timedelta(days=1)
+            # Fetch for next N days starting from today
+            start_date = date.today()
             for i in range(args.days):
                 target_date = start_date + timedelta(days=i)
                 print(f"\n=== Fetching puzzles for {target_date} ===")
