@@ -18,7 +18,8 @@ import { Flag, RotateCcw } from "lucide-react";
 interface GameBoardProps {
   game: GameResponse;
   playerColor: "white" | "black" | null;
-  discordId: string;
+  discordId?: string;
+  guestName?: string;
   onGameUpdate: (game: Partial<GameResponse>) => void;
 }
 
@@ -26,6 +27,7 @@ export function GameBoard({
   game,
   playerColor,
   discordId,
+  guestName,
   onGameUpdate,
 }: GameBoardProps) {
   const [position, setPosition] = useState(game.current_fen);
@@ -46,7 +48,11 @@ export function GameBoard({
 
   // Connect WebSocket
   useEffect(() => {
-    const wsUrl = getGameWebSocketUrl(game.code, discordId);
+    const wsUrl = getGameWebSocketUrl(game.code, {
+      discordId,
+      guestName,
+      playerColor: playerColor || undefined,
+    });
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -81,7 +87,7 @@ export function GameBoard({
     return () => {
       ws.close();
     };
-  }, [game.code, discordId, gameInstance, onGameUpdate]);
+  }, [game.code, discordId, guestName, playerColor, gameInstance, onGameUpdate]);
 
   const sendMove = useCallback((move: string, timeSpent: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

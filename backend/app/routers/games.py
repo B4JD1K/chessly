@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import GameStatus
 from app.schemas import (
     GameCreate,
+    GameJoin,
     GameResponse,
     GameMoveRequest,
     GameMoveResponse,
@@ -15,35 +17,66 @@ from app.services import GameService, UserService, connection_manager
 router = APIRouter()
 
 
-def get_player_info(user) -> PlayerInfo | None:
-    if user is None:
-        return None
-    return PlayerInfo(
-        id=user.id,
-        username=user.username,
-        avatar_url=user.avatar_url,
-    )
+def get_player_info(user, guest_name: Optional[str] = None) -> PlayerInfo | None:
+    """Get player info from user or guest name."""
+    if user is not None:
+        return PlayerInfo(
+            id=user.id,
+            username=user.username,
+            avatar_url=user.avatar_url,
+            is_guest=False,
+        )
+    elif guest_name:
+        return PlayerInfo(
+            id=None,
+            username=guest_name,
+            avatar_url=None,
+            is_guest=True,
+        )
+    return None
+
+
+def get_game_player_info(game, color: str) -> PlayerInfo | None:
+    """Get player info for a specific color in a game."""
+    if color == "white":
+        if game.white_player:
+            return get_player_info(game.white_player)
+        elif game.white_guest_name:
+            return get_player_info(None, game.white_guest_name)
+    else:
+        if game.black_player:
+            return get_player_info(game.black_player)
+        elif game.black_guest_name:
+            return get_player_info(None, game.black_guest_name)
+    return None
 
 
 @router.post("", response_model=GameResponse)
 def create_game(
     game_data: GameCreate,
-    discord_id: str,
+    discord_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """
     Create a new multiplayer game.
 
+    Can be created by logged-in user (discord_id) or anonymous (guest_name in body).
     Returns the game with a unique code that can be shared.
     """
-    user_service = UserService(db)
-    user = user_service.get_user_by_discord_id(discord_id)
+    user = None
+    guest_name = None
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if discord_id:
+        user_service = UserService(db)
+        user = user_service.get_user_by_discord_id(discord_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+    else:
+        # Anonymous game creation
+        guest_name = game_data.guest_name or "Guest"
 
     game_service = GameService(db)
-    game = game_service.create_game(user, game_data)
+    game = game_service.create_game(user, game_data, guest_name)
 
     return GameResponse(
         id=game.id,
@@ -53,8 +86,8 @@ def create_game(
         time_control=game.time_control,
         white_time_remaining=game.white_time_remaining,
         black_time_remaining=game.black_time_remaining,
-        white_player=get_player_info(game.white_player),
-        black_player=get_player_info(game.black_player),
+        white_player=get_game_player_info(game, "white"),
+        black_player=get_game_player_info(game, "black"),
         is_white_turn=game.is_white_turn,
         move_count=game.move_count,
         created_at=game.created_at,
@@ -83,8 +116,8 @@ def get_game(
         time_control=game.time_control,
         white_time_remaining=game.white_time_remaining,
         black_time_remaining=game.black_time_remaining,
-        white_player=get_player_info(game.white_player),
-        black_player=get_player_info(game.black_player),
+        white_player=get_game_player_info(game, "white"),
+        black_player=get_game_player_info(game, "black"),
         is_white_turn=game.is_white_turn,
         move_count=game.move_count,
         created_at=game.created_at,
@@ -95,15 +128,22 @@ def get_game(
 @router.post("/{code}/join", response_model=GameResponse)
 def join_game(
     code: str,
-    discord_id: str,
+    join_data: GameJoin,
+    discord_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """Join an existing game as the black player."""
-    user_service = UserService(db)
-    user = user_service.get_user_by_discord_id(discord_id)
+    """Join an existing game as the opponent (color depends on creator's choice)."""
+    user = None
+    guest_name = None
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if discord_id:
+        user_service = UserService(db)
+        user = user_service.get_user_by_discord_id(discord_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+    else:
+        # Anonymous join
+        guest_name = join_data.guest_name or "Guest"
 
     game_service = GameService(db)
     game = game_service.get_game_by_code(code)
@@ -111,7 +151,7 @@ def join_game(
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
-    success, message = game_service.join_game(game, user)
+    success, message = game_service.join_game(game, user, guest_name)
 
     if not success:
         raise HTTPException(status_code=400, detail=message)
@@ -127,8 +167,8 @@ def join_game(
         time_control=game.time_control,
         white_time_remaining=game.white_time_remaining,
         black_time_remaining=game.black_time_remaining,
-        white_player=get_player_info(game.white_player),
-        black_player=get_player_info(game.black_player),
+        white_player=get_game_player_info(game, "white"),
+        black_player=get_game_player_info(game, "black"),
         is_white_turn=game.is_white_turn,
         move_count=game.move_count,
         created_at=game.created_at,
@@ -193,23 +233,31 @@ def resign_game(
 async def game_websocket(
     websocket: WebSocket,
     code: str,
-    discord_id: str,
+    discord_id: Optional[str] = Query(None),
+    guest_name: Optional[str] = Query(None),
+    player_color: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """
     WebSocket endpoint for real-time game communication.
+
+    Query params:
+    - discord_id: For logged-in users
+    - guest_name: For anonymous users
+    - player_color: For anonymous users, their assigned color ("white" or "black")
 
     Message types:
     - move: {type: "move", move: "e2e4", time_spent: 1000}
     - resign: {type: "resign"}
     - timeout: {type: "timeout", color: "white"|"black"}
     """
-    user_service = UserService(db)
-    user = user_service.get_user_by_discord_id(discord_id)
-
-    if not user:
-        await websocket.close(code=4004, reason="User not found")
-        return
+    user = None
+    if discord_id:
+        user_service = UserService(db)
+        user = user_service.get_user_by_discord_id(discord_id)
+        if not user:
+            await websocket.close(code=4004, reason="User not found")
+            return
 
     game_service = GameService(db)
     game = game_service.get_game_by_code(code)
@@ -218,15 +266,27 @@ async def game_websocket(
         await websocket.close(code=4004, reason="Game not found")
         return
 
-    # Connect to the game room
-    await connection_manager.connect(websocket, code, user.id)
+    # Determine player color
+    if user:
+        color = game_service.get_player_color(game, user)
+        player_id = user.id
+        player_info = get_player_info(user)
+    else:
+        # Anonymous player - use provided color
+        color = player_color
+        player_id = f"guest_{guest_name or 'Guest'}"
+        player_info = PlayerInfo(
+            id=None,
+            username=guest_name or "Guest",
+            avatar_url=None,
+            is_guest=True,
+        )
 
-    # Get player color
-    color = game_service.get_player_color(game, user)
+    # Connect to the game room
+    await connection_manager.connect(websocket, code, player_id)
 
     # Notify others if a new player joined and game should start
     if game.status == GameStatus.ACTIVE.value and color:
-        player_info = get_player_info(user)
         await connection_manager.broadcast_to_game(
             code,
             {
@@ -239,17 +299,23 @@ async def game_websocket(
 
         # If both players are connected, send game start
         if connection_manager.get_connection_count(code) == 2:
-            await connection_manager.broadcast_to_all(
-                code,
-                {
-                    "type": "game_start",
-                    "white_player": get_player_info(game.white_player).model_dump(),
-                    "black_player": get_player_info(game.black_player).model_dump(),
-                    "fen": game.current_fen,
-                    "white_time": game.white_time_remaining,
-                    "black_time": game.black_time_remaining,
-                },
-            )
+            white_info = get_game_player_info(game, "white")
+            black_info = get_game_player_info(game, "black")
+            if white_info and black_info:
+                await connection_manager.broadcast_to_all(
+                    code,
+                    {
+                        "type": "game_start",
+                        "white_player": white_info.model_dump(),
+                        "black_player": black_info.model_dump(),
+                        "fen": game.current_fen,
+                        "white_time": game.white_time_remaining,
+                        "black_time": game.black_time_remaining,
+                    },
+                )
+
+    # Determine if this connection is white for anonymous move validation
+    is_white_player = color == "white" if color else None
 
     try:
         while True:
@@ -265,7 +331,12 @@ async def game_websocket(
                     time_spent=data.get("time_spent", 0),
                 )
 
-                result = game_service.make_move(game, user, move_request)
+                result = game_service.make_move(
+                    game,
+                    user,
+                    move_request,
+                    is_white_player=is_white_player,
+                )
 
                 if result.valid:
                     # Broadcast move to all players
@@ -302,7 +373,11 @@ async def game_websocket(
             elif msg_type == "resign":
                 db.refresh(game)
                 if game.status == GameStatus.ACTIVE.value:
-                    result = game_service.resign_game(game, user)
+                    result = game_service.resign_game(
+                        game,
+                        user,
+                        is_white_resigning=is_white_player,
+                    )
                     await connection_manager.broadcast_to_all(
                         code,
                         {
@@ -334,7 +409,7 @@ async def game_websocket(
             code,
             {
                 "type": "player_disconnected",
-                "player_id": user.id,
+                "player_id": player_id,
                 "color": color,
             },
         )

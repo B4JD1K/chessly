@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+import random
 
 import chess
 from sqlalchemy.orm import Session
@@ -20,12 +21,45 @@ class GameService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_game(self, creator: User, game_data: GameCreate) -> GameSession:
-        """Create a new game and assign the creator as white player."""
+    def create_game(
+        self,
+        creator: Optional[User],
+        game_data: GameCreate,
+        guest_name: Optional[str] = None,
+    ) -> GameSession:
+        """
+        Create a new game.
+
+        Args:
+            creator: User object if logged in, None for anonymous
+            game_data: Game creation parameters
+            guest_name: Guest name for anonymous players
+        """
         time_settings = TIME_CONTROL_SETTINGS[game_data.time_control]
 
+        # Resolve random color
+        color = game_data.color
+        if color == "random":
+            color = random.choice(["white", "black"])
+
+        # Determine player assignment based on color choice
+        if color == "white":
+            white_player_id = creator.id if creator else None
+            white_guest_name = guest_name if not creator else None
+            black_player_id = None
+            black_guest_name = None
+        else:
+            white_player_id = None
+            white_guest_name = None
+            black_player_id = creator.id if creator else None
+            black_guest_name = guest_name if not creator else None
+
         game = GameSession(
-            white_player_id=creator.id,
+            white_player_id=white_player_id,
+            black_player_id=black_player_id,
+            white_guest_name=white_guest_name,
+            black_guest_name=black_guest_name,
+            creator_color=color,
             time_control=game_data.time_control.value,
             white_time_remaining=time_settings["initial"],
             black_time_remaining=time_settings["initial"],
@@ -53,39 +87,79 @@ class GameService:
             .first()
         )
 
-    def join_game(self, game: GameSession, player: User) -> tuple[bool, str]:
+    def join_game(
+        self,
+        game: GameSession,
+        player: Optional[User] = None,
+        guest_name: Optional[str] = None,
+    ) -> tuple[bool, str]:
         """
-        Join an existing game as the black player.
+        Join an existing game as the opponent.
+
+        Args:
+            game: The game to join
+            player: User object if logged in, None for anonymous
+            guest_name: Guest name for anonymous players
 
         Returns (success, message/color).
         """
         if game.status != GameStatus.WAITING.value:
             return False, "Game is not accepting players"
 
-        if game.white_player_id == player.id:
-            return True, "white"  # Already in the game as white
-
-        if game.black_player_id is not None:
+        # Check if player is already in the game
+        if player:
+            if game.white_player_id == player.id:
+                return True, "white"
             if game.black_player_id == player.id:
-                return True, "black"  # Already in the game as black
-            return False, "Game is full"
+                return True, "black"
 
-        # Join as black
-        game.black_player_id = player.id
-        game.status = GameStatus.ACTIVE.value
-        game.started_at = datetime.utcnow()
+        # Determine which slot to fill (opposite of creator)
+        if game.creator_color == "white":
+            # Creator is white, joiner takes black
+            if game.black_player_id is not None or game.black_guest_name is not None:
+                return False, "Game is full"
 
-        self.db.commit()
-        return True, "black"
+            if player:
+                game.black_player_id = player.id
+            else:
+                game.black_guest_name = guest_name or "Guest"
+
+            game.status = GameStatus.ACTIVE.value
+            game.started_at = datetime.utcnow()
+            self.db.commit()
+            return True, "black"
+        else:
+            # Creator is black, joiner takes white
+            if game.white_player_id is not None or game.white_guest_name is not None:
+                return False, "Game is full"
+
+            if player:
+                game.white_player_id = player.id
+            else:
+                game.white_guest_name = guest_name or "Guest"
+
+            game.status = GameStatus.ACTIVE.value
+            game.started_at = datetime.utcnow()
+            self.db.commit()
+            return True, "white"
 
     def make_move(
         self,
         game: GameSession,
-        player: User,
+        player: Optional[User],
         move_request: GameMoveRequest,
+        guest_session_id: Optional[str] = None,
+        is_white_player: Optional[bool] = None,
     ) -> GameMoveResponse:
         """
         Process a move in the game.
+
+        Args:
+            game: The game session
+            player: User object if logged in, None for anonymous
+            move_request: The move to make
+            guest_session_id: Session ID for anonymous players (unused but kept for future)
+            is_white_player: For anonymous players, explicitly specify color
 
         Validates the move, updates game state, and checks for game over.
         """
@@ -96,8 +170,13 @@ class GameService:
             )
 
         # Check if it's the player's turn
-        is_white = game.white_player_id == player.id
-        is_black = game.black_player_id == player.id
+        if player:
+            is_white = game.white_player_id == player.id
+            is_black = game.black_player_id == player.id
+        else:
+            # Anonymous player - use explicit color
+            is_white = is_white_player is True
+            is_black = is_white_player is False
 
         if not (is_white or is_black):
             return GameMoveResponse(
@@ -210,9 +289,17 @@ class GameService:
         self.db.commit()
         return result
 
-    def resign_game(self, game: GameSession, player: User) -> GameResult:
+    def resign_game(
+        self,
+        game: GameSession,
+        player: Optional[User] = None,
+        is_white_resigning: Optional[bool] = None,
+    ) -> GameResult:
         """Handle player resignation."""
-        is_white = game.white_player_id == player.id
+        if player:
+            is_white = game.white_player_id == player.id
+        else:
+            is_white = is_white_resigning is True
 
         if is_white:
             result = GameResult.BLACK_WIN
@@ -226,10 +313,22 @@ class GameService:
         self.db.commit()
         return result
 
-    def get_player_color(self, game: GameSession, player: User) -> Optional[str]:
+    def get_player_color(
+        self,
+        game: GameSession,
+        player: Optional[User] = None,
+    ) -> Optional[str]:
         """Get the color a player is playing as in a game."""
-        if game.white_player_id == player.id:
-            return "white"
-        elif game.black_player_id == player.id:
-            return "black"
+        if player:
+            if game.white_player_id == player.id:
+                return "white"
+            elif game.black_player_id == player.id:
+                return "black"
         return None
+
+    def has_anonymous_player(self, game: GameSession, color: str) -> bool:
+        """Check if a color slot is occupied by an anonymous player."""
+        if color == "white":
+            return game.white_guest_name is not None and game.white_player_id is None
+        else:
+            return game.black_guest_name is not None and game.black_player_id is None

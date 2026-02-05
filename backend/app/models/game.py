@@ -60,13 +60,18 @@ class GameSession(Base):
         String(8), unique=True, index=True, default=generate_game_code
     )
 
-    # Players
+    # Players (nullable for anonymous games)
     white_player_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     black_player_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Guest names for anonymous players
+    white_guest_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    black_guest_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Creator's chosen color ("white" or "black" or "random" -> resolved)
+    creator_color: Mapped[str] = mapped_column(String(10), default="white")
 
     # Game state
     status: Mapped[str] = mapped_column(

@@ -52,9 +52,10 @@ export type GameStatus = "waiting" | "active" | "completed" | "abandoned";
 export type GameResult = "white_win" | "black_win" | "draw" | "abandoned";
 
 export interface PlayerInfo {
-  id: number;
+  id: number | null;  // null for guest players
   username: string;
   avatar_url: string | null;
+  is_guest?: boolean;
 }
 
 export interface GameResponse {
@@ -169,16 +170,33 @@ export async function completePuzzle(
 }
 
 // Game endpoints
+export type ColorChoice = "white" | "black" | "random";
+
+export interface CreateGameOptions {
+  timeControl?: TimeControl;
+  color?: ColorChoice;
+  guestName?: string;  // For anonymous players
+}
+
 export async function createGame(
-  discordId: string,
-  timeControl: TimeControl = "blitz_5"
+  discordId: string | null,
+  options: CreateGameOptions = {}
 ): Promise<GameResponse> {
-  const response = await fetch(`${API_BASE_URL}/games?discord_id=${discordId}`, {
+  const { timeControl = "blitz_5", color = "white", guestName } = options;
+  const url = discordId
+    ? `${API_BASE_URL}/games?discord_id=${discordId}`
+    : `${API_BASE_URL}/games`;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ time_control: timeControl }),
+    body: JSON.stringify({
+      time_control: timeControl,
+      color,
+      guest_name: guestName,
+    }),
   });
   if (!response.ok) {
     throw new Error("Failed to create game");
@@ -194,9 +212,24 @@ export async function getGame(code: string): Promise<GameResponse> {
   return response.json();
 }
 
-export async function joinGame(code: string, discordId: string): Promise<GameResponse> {
-  const response = await fetch(`${API_BASE_URL}/games/${code}/join?discord_id=${discordId}`, {
+export async function joinGame(
+  code: string,
+  discordId: string | null,
+  guestName?: string
+): Promise<GameResponse> {
+  const url = discordId
+    ? `${API_BASE_URL}/games/${code}/join?discord_id=${discordId}`
+    : `${API_BASE_URL}/games/${code}/join`;
+
+  const response = await fetch(url, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      code,
+      guest_name: guestName,
+    }),
   });
   if (!response.ok) {
     throw new Error("Failed to join game");
@@ -213,8 +246,24 @@ export async function resignGame(code: string, discordId: string): Promise<void>
   }
 }
 
-export function getGameWebSocketUrl(code: string, discordId: string): string {
-  return `${WS_BASE_URL}/games/${code}/ws?discord_id=${discordId}`;
+export interface WebSocketOptions {
+  discordId?: string;
+  guestName?: string;
+  playerColor?: string;
+}
+
+export function getGameWebSocketUrl(code: string, options: WebSocketOptions): string {
+  const params = new URLSearchParams();
+  if (options.discordId) {
+    params.set("discord_id", options.discordId);
+  }
+  if (options.guestName) {
+    params.set("guest_name", options.guestName);
+  }
+  if (options.playerColor) {
+    params.set("player_color", options.playerColor);
+  }
+  return `${WS_BASE_URL}/games/${code}/ws?${params.toString()}`;
 }
 
 // Bot game types

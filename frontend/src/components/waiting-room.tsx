@@ -9,10 +9,12 @@ import { Copy, Check, Loader2 } from "lucide-react";
 interface WaitingRoomProps {
   game: GameResponse;
   onGameStart: () => void;
-  discordId: string;
+  discordId?: string;
+  guestName?: string;
+  playerColor?: "white" | "black";
 }
 
-export function WaitingRoom({ game, onGameStart, discordId }: WaitingRoomProps) {
+export function WaitingRoom({ game, onGameStart, discordId, guestName, playerColor }: WaitingRoomProps) {
   const [copied, setCopied] = useState(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
 
@@ -28,7 +30,11 @@ export function WaitingRoom({ game, onGameStart, discordId }: WaitingRoomProps) 
 
   // Connect WebSocket to listen for opponent joining
   useEffect(() => {
-    const wsUrl = getGameWebSocketUrl(game.code, discordId);
+    const wsUrl = getGameWebSocketUrl(game.code, {
+      discordId,
+      guestName,
+      playerColor,
+    });
     const websocket = new WebSocket(wsUrl);
 
     websocket.onmessage = (event) => {
@@ -48,7 +54,11 @@ export function WaitingRoom({ game, onGameStart, discordId }: WaitingRoomProps) 
     return () => {
       websocket.close();
     };
-  }, [game.code, discordId, onGameStart]);
+  }, [game.code, discordId, guestName, playerColor, onGameStart]);
+
+  // Determine player's color
+  const myColor = playerColor ||
+    (game.white_player?.username === (discordId ? undefined : guestName) ? "white" : "black");
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -94,7 +104,10 @@ export function WaitingRoom({ game, onGameStart, discordId }: WaitingRoomProps) 
 
             <div className="pt-4 border-t">
               <p className="text-sm text-muted-foreground text-center">
-                You are playing as <strong>White</strong>
+                You are playing as <strong>{myColor === "white" ? "White" : "Black"}</strong>
+                {guestName && !discordId && (
+                  <span> ({guestName})</span>
+                )}
               </p>
             </div>
           </CardContent>

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel
 
 from app.models.game import TimeControl, GameStatus, GameResult
@@ -6,18 +7,28 @@ from app.models.game import TimeControl, GameStatus, GameResult
 
 class GameCreate(BaseModel):
     time_control: TimeControl = TimeControl.BLITZ_5
+    color: Literal["white", "black", "random"] = "white"
+    guest_name: str | None = None  # For anonymous players
 
 
 class GameJoin(BaseModel):
     code: str
+    guest_name: str | None = None  # For anonymous players
 
 
 class PlayerInfo(BaseModel):
-    id: int
+    id: int | None = None  # None for anonymous players
     username: str
     avatar_url: str | None = None
+    is_guest: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class AnonymousPlayerInfo(BaseModel):
+    """Info for anonymous player stored in game session."""
+    guest_name: str
+    session_id: str  # WebSocket session identifier
 
 
 class GameMoveSchema(BaseModel):
