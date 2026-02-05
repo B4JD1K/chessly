@@ -13,6 +13,38 @@ const SOURCE_LABELS: Record<string, string> = {
   "chess.com": "Chess.com",
 };
 
+// Helper functions for anonymous puzzle tracking
+function getLocalStorageKey(): string {
+  const today = new Date().toISOString().split("T")[0];
+  return `chessly_puzzles_${today}`;
+}
+
+function getCompletedPuzzlesFromStorage(): Set<number> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const stored = localStorage.getItem(getLocalStorageKey());
+    if (stored) {
+      const ids = JSON.parse(stored) as number[];
+      return new Set(ids);
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return new Set();
+}
+
+function saveCompletedPuzzleToStorage(puzzleId: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = getLocalStorageKey();
+    const existing = getCompletedPuzzlesFromStorage();
+    existing.add(puzzleId);
+    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export default function DailyPuzzlePage() {
   const { discordId, streak, refreshStreak } = useUser();
   const [puzzles, setPuzzles] = useState<PuzzleResponse[]>([]);
@@ -39,24 +71,42 @@ export default function DailyPuzzlePage() {
     fetchPuzzles();
   }, []);
 
-  // Check if puzzle was already solved today
+  // Check if puzzle was already solved today (logged in or anonymous)
   useEffect(() => {
-    if (streak?.puzzle_solved_today) {
-      // Mark first puzzle as completed (for streak purposes)
+    if (discordId && streak?.puzzle_solved_today) {
+      // Logged in user with streak - mark first puzzle as completed
       if (puzzles.length > 0) {
         setCompletedPuzzles(new Set([puzzles[0].id]));
       }
+    } else if (!discordId && puzzles.length > 0) {
+      // Anonymous user - check localStorage
+      const storedCompleted = getCompletedPuzzlesFromStorage();
+      const puzzleIds = new Set(puzzles.map(p => p.id));
+      // Only keep IDs that match current puzzles
+      const validCompleted = new Set(
+        Array.from(storedCompleted).filter(id => puzzleIds.has(id))
+      );
+      if (validCompleted.size > 0) {
+        setCompletedPuzzles(validCompleted);
+      }
     }
-  }, [streak, puzzles]);
+  }, [discordId, streak, puzzles]);
 
   const handleComplete = useCallback(async (success: boolean) => {
-    if (success && discordId && puzzle) {
-      try {
-        await completePuzzle(discordId, puzzle.id, true);
+    if (success && puzzle) {
+      if (discordId) {
+        // Logged in user - save to backend
+        try {
+          await completePuzzle(discordId, puzzle.id, true);
+          setCompletedPuzzles(prev => new Set([...Array.from(prev), puzzle.id]));
+          refreshStreak();
+        } catch (error) {
+          console.error("Failed to record completion:", error);
+        }
+      } else {
+        // Anonymous user - save to localStorage
+        saveCompletedPuzzleToStorage(puzzle.id);
         setCompletedPuzzles(prev => new Set([...Array.from(prev), puzzle.id]));
-        refreshStreak();
-      } catch (error) {
-        console.error("Failed to record completion:", error);
       }
     }
   }, [discordId, puzzle, refreshStreak]);
@@ -160,13 +210,19 @@ export default function DailyPuzzlePage() {
                   <p className="font-semibold text-green-700 dark:text-green-300">
                     All puzzles solved!
                   </p>
-                  <div className="flex items-center gap-1 text-orange-500">
-                    <Flame className="h-4 w-4" />
-                    <span className="text-sm">
-                      Streak: {streak?.current_streak || 1} day
-                      {(streak?.current_streak || 1) !== 1 ? "s" : ""}
-                    </span>
-                  </div>
+                  {discordId ? (
+                    <div className="flex items-center gap-1 text-orange-500">
+                      <Flame className="h-4 w-4" />
+                      <span className="text-sm">
+                        Streak: {streak?.current_streak || 1} day
+                        {(streak?.current_streak || 1) !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Log in to track your streak!
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
