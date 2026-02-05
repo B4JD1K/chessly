@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createBotGame, BotDifficulty, BOT_DIFFICULTY_LABELS } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
-import { Loader2, Bot } from "lucide-react";
+import { Loader2, Bot, User } from "lucide-react";
 
 const DIFFICULTIES: BotDifficulty[] = ["beginner", "easy", "medium", "hard", "expert", "master"];
 
@@ -14,7 +14,7 @@ export default function PlayBotPage() {
   const router = useRouter();
   const { session, discordId } = useUser();
   const [selectedDifficulty, setSelectedDifficulty] = useState<BotDifficulty>("medium");
-  const [selectedColor, setSelectedColor] = useState<"white" | "black">("white");
+  const [selectedColor, setSelectedColor] = useState<"white" | "black" | "random">("white");
   const [isCreating, setIsCreating] = useState(false);
 
   const handleStartGame = async () => {
@@ -22,7 +22,11 @@ export default function PlayBotPage() {
 
     setIsCreating(true);
     try {
-      const game = await createBotGame(discordId, selectedDifficulty, selectedColor);
+      // Resolve random color before creating game
+      const actualColor = selectedColor === "random"
+        ? (Math.random() < 0.5 ? "white" : "black")
+        : selectedColor;
+      const game = await createBotGame(discordId, selectedDifficulty, actualColor);
       router.push(`/play/bot/${game.id}`);
     } catch (error) {
       console.error("Failed to create game:", error);
@@ -37,13 +41,32 @@ export default function PlayBotPage() {
           <CardHeader>
             <CardTitle>Play vs Bot</CardTitle>
             <CardDescription>
-              Login with Discord to play against Stockfish
+              Play against Stockfish chess engine
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Button onClick={() => router.push("/login")} className="w-full">
               Login to Play
             </Button>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/play/bot/anonymous")}
+              className="w-full"
+            >
+              <User className="h-4 w-4 mr-2" />
+              Play as Guest
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Guest games run in your browser and won&apos;t be saved.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -94,7 +117,7 @@ export default function PlayBotPage() {
               <label className="text-sm font-medium mb-3 block">
                 Play as
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant={selectedColor === "white" ? "default" : "outline"}
                   onClick={() => setSelectedColor("white")}
@@ -102,6 +125,14 @@ export default function PlayBotPage() {
                 >
                   <span className="text-2xl mr-2">♔</span>
                   White
+                </Button>
+                <Button
+                  variant={selectedColor === "random" ? "default" : "outline"}
+                  onClick={() => setSelectedColor("random")}
+                  className="w-full"
+                >
+                  <span className="text-2xl mr-2">?</span>
+                  Random
                 </Button>
                 <Button
                   variant={selectedColor === "black" ? "default" : "outline"}
